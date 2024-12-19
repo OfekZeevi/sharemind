@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "sharemind"
+version = "0.1.0"
+description = "A demonstation of the core functionality of the Sharemind secure multiparty computation system"
+authors = ["Ofek Zeevi <zeevi.ofek@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

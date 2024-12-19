@@ -1,0 +1,1 @@
+from .sharemind import SharedSecret
