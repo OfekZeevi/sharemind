@@ -2,7 +2,7 @@ from __future__ import annotations
 import random
 import math
 from typing import Iterable, Optional
-import tqdm
+from tqdm import tqdm
 
 
 class SharemindSecret:
@@ -220,12 +220,18 @@ def main():
     result = SharemindSecret.bitwise_addition(u_bits, v_bits)
     print(result, sum([r.numeric_value * (2 ** i) for i, r in enumerate(result)]), '==', n1 + n2)
 
-    for _ in tqdm.tqdm(range(1000)):
-        n1, n2 = (random.randint(0, 2 ** 31) for _ in range(2))
-        a = SharemindSecret(num=n1)
-        b = SharemindSecret(num=n2)
-        if bool(n1 >= n2) ^ bool(a >= b):
-            print(f'Error! {a} and {b}')
+    for n in [8, 16, 32, 64]:
+        count = 0
+        for _ in tqdm(range(1000)):
+            i, j = [random.randint(0, 2**(n-1)) for _ in range(2)]
+            a = SharemindSecret(num=i, size=n)
+            b = SharemindSecret(num=j, size=n)
+            if bool(i >= j) ^ bool(a >= b):
+                print(f'Failed for {i} and {j}, with n={n}')
+                break
+            count += 1
+        else:
+            print(f'Finished {count} random checks with n={n}')
 
 
 if __name__ == '__main__':
