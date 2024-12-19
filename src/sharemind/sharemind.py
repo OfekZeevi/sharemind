@@ -51,6 +51,7 @@ class SharemindSecret:
         u = SharemindSecret(shares=shares, size=size)
         mod = 2 ** size
 
+        # Round 1
         r12, r13, s12, s13 = (random.randint(0, mod - 1) for _ in range(4))
         s1 = r12 * r13 - s12 - s13
         r23, r21, s23, s21 = (random.randint(0, mod - 1) for _ in range(4))
@@ -58,6 +59,7 @@ class SharemindSecret:
         r31, r32, s31, s32 = (random.randint(0, mod - 1) for _ in range(4))
         s3 = r31 * r32 - s31 - s32
 
+        # Round 2
         u1, u2, u3 = u.shares
         b12 = r31 + u1
         b13 = r21 + u1
@@ -68,6 +70,7 @@ class SharemindSecret:
 
         c = SharemindSecret(num=u3, size=size)
 
+        # Round 3
         ab1 = s31 - r31 * b21
         ab2 = b12 * b21 + s32 - b12 * r32
         ab3 = s3
@@ -84,15 +87,19 @@ class SharemindSecret:
         bc = SharemindSecret(shares=(bc1 % mod, bc2 % mod, bc3 % mod), size=size)
 
         abc = ab * c
+
+        # Round 4
         w = u - ab * 2 - ac * 2 - bc * 2 + abc * 4
         w.re_share()
         return w
 
     @classmethod
     def generate_random_number_and_bits(cls, size: int = 32) -> tuple[SharemindSecret, list[SharemindSecret]]:
+        # Round 1
         r_bits = [cls.from_binary_shares(shares=(random.randint(0, 1) for _ in range(3)), size=size)
                   for _ in range(size)]
 
+        # Round 2
         r = SharemindSecret(num=0, size=size)
         for i, bit in enumerate(r_bits):
             r += bit * (2 ** i)
@@ -110,12 +117,15 @@ class SharemindSecret:
         assert all(u.size == size and v.size == size for u, v in zip(u_bits, v_bits)), \
             'Not all values have the same size'
 
+        # Round 1
         s_flags = [u * v for u, v in zip(u_bits, v_bits)]
-        # In the original article it's written in a very unclear way, but THIS is the base case they specify.
         p_flags = [u + v - s * 2 for u, v, s in zip(u_bits, v_bits, s_flags)]
+        # In the original paper it's written twice in contradictory ways, but THIS is the correct base case.
+
+        # Round 2 ... log_2(n) + 1
         for k in range(0, int(math.log(size, 2))):
             for l in range(0, 2**k):
-                for m in range(0, size // (2**(k+1))):  # In the article there's a typo, the "k+1" brackets are missing.
+                for m in range(0, size // (2**(k+1))):  # In the paper there's a typo, the "k+1" brackets are missing.
                     i1 = 2**k + l + 2**(k+1) * m
                     i2 = 2**k + 2**(k+1) * m - 1
                     s_flags[i1] = s_flags[i1] + p_flags[i1] * s_flags[i2]
@@ -127,9 +137,12 @@ class SharemindSecret:
         return w
 
     def extract_bits(self) -> list[SharemindSecret]:
+        # Round 1 & 2
         r, r_bits = self.generate_random_number_and_bits(size=self.size)
 
         a = self - r
+
+        # Round 2
         a_raw_value = a.numeric_value
         a_raw_bits = [a_raw_value // (2 ** i) % 2 for i in range(self.size)]
 
@@ -161,10 +174,12 @@ class SharemindSecret:
         u1, u2, u3 = self.shares
         v1, v2, v3 = other.shares
 
+        # Round 1
         r12, r13, s12, s13 = (random.randint(0, self.mod - 1) for _ in range(4))
         r23, r21, s23, s21 = (random.randint(0, self.mod - 1) for _ in range(4))
         r31, r32, s31, s32 = (random.randint(0, self.mod - 1) for _ in range(4))
 
+        # Round 2
         a12 = u1 + r31
         b12 = v1 + s31
         a13 = u1 + r21
@@ -178,6 +193,7 @@ class SharemindSecret:
         a32 = u3 + r13
         b32 = v3 + s13
 
+        # Round 3
         c1 = u1 * b21 + u1 * b31 + v1 * a21 + v1 * a31 - a12 * b21 - b12 * a21 + r12 * s13 + s12 * r13
         w1 = (c1 + u1 * v1) % self.mod
         c2 = u2 * b32 + u2 * b12 + v2 * a32 + v2 * a12 - a23 * b32 - b23 * a32 + r23 * s21 + s23 * r21
