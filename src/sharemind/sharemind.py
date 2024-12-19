@@ -5,7 +5,7 @@ from typing import Iterable, Optional
 import tqdm
 
 
-class SharedSecret:
+class SharemindSecret:
     def __init__(self, num: Optional[int] = None, shares: Optional[Iterable] = None, size: int = 32):
         self.size = size
         self.mod = 2 ** size
@@ -47,8 +47,8 @@ class SharedSecret:
         self.shares = (w1, w2, w3)
 
     @classmethod
-    def from_binary_shares(cls, shares: Iterable, size: int = 32) -> SharedSecret:
-        u = SharedSecret(shares=shares, size=size)
+    def from_binary_shares(cls, shares: Iterable, size: int = 32) -> SharemindSecret:
+        u = SharemindSecret(shares=shares, size=size)
         mod = 2 ** size
 
         r12, r13, s12, s13 = (random.randint(0, mod - 1) for _ in range(4))
@@ -66,22 +66,22 @@ class SharedSecret:
         b31 = r23 + u3
         b32 = r13 + u3
 
-        c = SharedSecret(num=u3, size=size)
+        c = SharemindSecret(num=u3, size=size)
 
         ab1 = s31 - r31 * b21
         ab2 = b12 * b21 + s32 - b12 * r32
         ab3 = s3
-        ab = SharedSecret(shares=(ab1 % mod, ab2 % mod, ab3 % mod), size=size)
+        ab = SharemindSecret(shares=(ab1 % mod, ab2 % mod, ab3 % mod), size=size)
 
         ac1 = b31 * b13 + s21 - b31 * r21
         ac2 = s2
         ac3 = s23 - r23 * b13
-        ac = SharedSecret(shares=(ac1 % mod, ac2 % mod, ac3 % mod), size=size)
+        ac = SharemindSecret(shares=(ac1 % mod, ac2 % mod, ac3 % mod), size=size)
 
         bc1 = s1
         bc2 = s12 - r12 * b32
         bc3 = b23 * b32 + s13 - b23 * r13
-        bc = SharedSecret(shares=(bc1 % mod, bc2 % mod, bc3 % mod), size=size)
+        bc = SharemindSecret(shares=(bc1 % mod, bc2 % mod, bc3 % mod), size=size)
 
         abc = ab * c
         w = u - ab * 2 - ac * 2 - bc * 2 + abc * 4
@@ -89,18 +89,18 @@ class SharedSecret:
         return w
 
     @classmethod
-    def generate_random_number_and_bits(cls, size: int = 32) -> tuple[SharedSecret, list[SharedSecret]]:
+    def generate_random_number_and_bits(cls, size: int = 32) -> tuple[SharemindSecret, list[SharemindSecret]]:
         r_bits = [cls.from_binary_shares(shares=(random.randint(0, 1) for _ in range(3)), size=size)
                   for _ in range(size)]
 
-        r = SharedSecret(num=0, size=size)
+        r = SharemindSecret(num=0, size=size)
         for i, bit in enumerate(r_bits):
             r += bit * (2 ** i)
 
         return r, r_bits
 
     @staticmethod
-    def bitwise_addition(u_bits: list[SharedSecret], v_bits: list[SharedSecret]) -> list[SharedSecret]:
+    def bitwise_addition(u_bits: list[SharemindSecret], v_bits: list[SharemindSecret]) -> list[SharemindSecret]:
         """
         This is the bitwise addition in the carry look-ahead method that's described in the origin article.
         It's a bit more complex than the naive carry calculation, but should be better for parallelization.
@@ -126,7 +126,7 @@ class SharedSecret:
 
         return w
 
-    def extract_bits(self) -> list[SharedSecret]:
+    def extract_bits(self) -> list[SharemindSecret]:
         r, r_bits = self.generate_random_number_and_bits(size=self.size)
 
         a = self - r
@@ -138,21 +138,21 @@ class SharedSecret:
         d_bits = self.bitwise_addition(a_bits, r_bits)
         return d_bits
 
-    def __add__(self, other: SharedSecret) -> SharedSecret:
+    def __add__(self, other: SharemindSecret) -> SharemindSecret:
         assert self.size == other.size, 'Cannot perform addition with different sizes'
-        w = SharedSecret(shares=((u + v) % self.mod for u, v in zip(self.shares, other.shares)), size=self.size)
+        w = SharemindSecret(shares=((u + v) % self.mod for u, v in zip(self.shares, other.shares)), size=self.size)
         w.re_share()
         return w
 
-    def __sub__(self, other: SharedSecret) -> SharedSecret:
+    def __sub__(self, other: SharemindSecret) -> SharemindSecret:
         assert self.size == other.size, 'Cannot perform subtraction with different sizes'
-        w = SharedSecret(shares=((u - v) % self.mod for u, v in zip(self.shares, other.shares)), size=self.size)
+        w = SharemindSecret(shares=((u - v) % self.mod for u, v in zip(self.shares, other.shares)), size=self.size)
         w.re_share()
         return w
 
-    def __mul__(self, other: int | SharedSecret) -> SharedSecret:
+    def __mul__(self, other: int | SharemindSecret) -> SharemindSecret:
         if isinstance(other, int):
-            w = SharedSecret(shares=((u * other) % self.mod for u in self.shares), size=self.size)
+            w = SharemindSecret(shares=((u * other) % self.mod for u in self.shares), size=self.size)
             w.re_share()
             return w
 
@@ -185,17 +185,17 @@ class SharedSecret:
         c3 = u3 * b13 + u3 * b23 + v3 * a13 + v3 * a23 - a31 * b13 - b31 * a13 + r31 * s32 + s31 * r32
         w3 = (c3 + u3 * v3) % self.mod
 
-        w = SharedSecret(shares=(w1, w2, w3), size=self.size)
+        w = SharemindSecret(shares=(w1, w2, w3), size=self.size)
         w.re_share()
         return w
 
-    def __ge__(self, other: SharedSecret) -> SharedSecret:
+    def __ge__(self, other: SharemindSecret) -> SharemindSecret:
         assert self.size == other.size, 'Cannot perform greater-than-equals comparison between different sizes'
 
         d = self - other
         d_bits = d.extract_bits()
 
-        w = SharedSecret(num=1, size=self.size) - d_bits[-1]
+        w = SharemindSecret(num=1, size=self.size) - d_bits[-1]
         return w
 
     def __bool__(self) -> bool:
@@ -203,8 +203,8 @@ class SharedSecret:
 
 
 def main():
-    a = SharedSecret(100)
-    b = SharedSecret(7)
+    a = SharemindSecret(100)
+    b = SharemindSecret(7)
 
     print(a)
     print(b)
@@ -213,17 +213,17 @@ def main():
     print(c)
 
     n1, n2 = 27, 25
-    u_bits = [SharedSecret(num=n1 // (2 ** i) % 2) for i in range(32)]
-    v_bits = [SharedSecret(num=n2 // (2 ** i) % 2) for i in range(32)]
+    u_bits = [SharemindSecret(num=n1 // (2 ** i) % 2) for i in range(32)]
+    v_bits = [SharemindSecret(num=n2 // (2 ** i) % 2) for i in range(32)]
     print(u_bits, sum([u.numeric_value * (2 ** i) for i, u in enumerate(u_bits)]))
     print(v_bits, sum([v.numeric_value * (2 ** i) for i, v in enumerate(v_bits)]))
-    result = SharedSecret.bitwise_addition(u_bits, v_bits)
+    result = SharemindSecret.bitwise_addition(u_bits, v_bits)
     print(result, sum([r.numeric_value * (2 ** i) for i, r in enumerate(result)]), '==', n1 + n2)
 
     for _ in tqdm.tqdm(range(1000)):
         n1, n2 = (random.randint(0, 2 ** 31) for _ in range(2))
-        a = SharedSecret(num=n1)
-        b = SharedSecret(num=n2)
+        a = SharemindSecret(num=n1)
+        b = SharemindSecret(num=n2)
         if bool(n1 >= n2) ^ bool(a >= b):
             print(f'Error! {a} and {b}')
 

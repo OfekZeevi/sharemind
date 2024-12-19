@@ -1,1 +1,1 @@
-from .sharemind import SharedSecret
+from .sharemind import SharemindSecret
