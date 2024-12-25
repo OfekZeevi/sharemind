@@ -13,7 +13,7 @@ def main():
                                                    'Defaults to 32.')
 @click.argument('number', type=int)
 def share(size, number):
-    s = SharemindSecret(num=number, size=size)
+    s = SharemindSecret(value=number, size=size)
     click.echo(f'The number {number} can be expressed with the shares {s.shares}')
 
 
@@ -35,8 +35,8 @@ def reconstruct(size, share_1, share_2, share_3):
 @click.argument('number_1', type=int)
 @click.argument('number_2', type=int)
 def demo(size, number_1, number_2):
-    u = SharemindSecret(num=number_1, size=size)
-    v = SharemindSecret(num=number_2, size=size)
+    u = SharemindSecret(value=number_1, size=size)
+    v = SharemindSecret(value=number_2, size=size)
     for x in (u, v):
         click.echo(f'The number {x.numeric_value} got the shares {x.shares}')
     click.echo()

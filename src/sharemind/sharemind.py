@@ -6,13 +6,13 @@ from tqdm import tqdm
 
 
 class SharemindSecret:
-    def __init__(self, num: Optional[int] = None, shares: Optional[Iterable] = None, size: int = 32):
+    def __init__(self, value: Optional[int] = None, shares: Optional[Iterable] = None, size: int = 32):
         self.size = size
         self.mod = 2 ** size
 
-        if num is not None:
-            assert 0 <= num < self.mod, 'Number provided is out of bounds'
-            self.shares = self.generate_shares(num, size)
+        if value is not None:
+            assert 0 <= value < self.mod, 'Number provided is out of bounds'
+            self.shares = self.generate_shares(value, size)
         elif shares is not None:
             shares = tuple(shares)
             assert all(0 <= v < self.mod for v in shares), 'Not all shares provided are within the necessary bounds'
@@ -29,10 +29,10 @@ class SharemindSecret:
         return sum(self.shares) % self.mod
 
     @staticmethod
-    def generate_shares(num: int, size: int = 32) -> tuple[int, int, int]:
+    def generate_shares(value: int, size: int = 32) -> tuple[int, int, int]:
         mod = 2 ** size
         a, b = (random.randint(0, mod - 1) for _ in range(2))
-        c = (num - a - b) % mod
+        c = (value - a - b) % mod
         return a, b, c
 
     def re_share(self):
@@ -68,7 +68,7 @@ class SharemindSecret:
         b31 = r23 + u3
         b32 = r13 + u3
 
-        c = SharemindSecret(num=u3, size=size)
+        c = SharemindSecret(value=u3, size=size)
 
         # Round 3
         ab1 = s31 - r31 * b21
@@ -100,7 +100,7 @@ class SharemindSecret:
                   for _ in range(size)]
 
         # Round 2
-        r = SharemindSecret(num=0, size=size)
+        r = SharemindSecret(value=0, size=size)
         for i, bit in enumerate(r_bits):
             r += bit * (2 ** i)
 
@@ -211,7 +211,7 @@ class SharemindSecret:
         d = self - other
         d_bits = d.extract_bits()
 
-        w = SharemindSecret(num=1, size=self.size) - d_bits[-1]
+        w = SharemindSecret(value=1, size=self.size) - d_bits[-1]
         return w
 
     def __bool__(self) -> bool:
@@ -229,8 +229,8 @@ def main():
     print(c)
 
     n1, n2 = 27, 25
-    u_bits = [SharemindSecret(num=n1 // (2 ** i) % 2) for i in range(32)]
-    v_bits = [SharemindSecret(num=n2 // (2 ** i) % 2) for i in range(32)]
+    u_bits = [SharemindSecret(value=n1 // (2 ** i) % 2) for i in range(32)]
+    v_bits = [SharemindSecret(value=n2 // (2 ** i) % 2) for i in range(32)]
     print(u_bits, sum([u.numeric_value * (2 ** i) for i, u in enumerate(u_bits)]))
     print(v_bits, sum([v.numeric_value * (2 ** i) for i, v in enumerate(v_bits)]))
     result = SharemindSecret.bitwise_addition(u_bits, v_bits)
@@ -240,8 +240,8 @@ def main():
         count = 0
         for _ in tqdm(range(1000)):
             i, j = [random.randint(0, 2**(n-1)) for _ in range(2)]
-            a = SharemindSecret(num=i, size=n)
-            b = SharemindSecret(num=j, size=n)
+            a = SharemindSecret(value=i, size=n)
+            b = SharemindSecret(value=j, size=n)
             if bool(i >= j) ^ bool(a >= b):
                 print(f'Failed for {i} and {j}, with n={n}')
                 break
