@@ -131,10 +131,10 @@ class SharemindSecret:
                     s_flags[i1] = s_flags[i1] + p_flags[i1] * s_flags[i2]
                     p_flags[i1] = p_flags[i1] * p_flags[i2]
 
-        w = ([u_bits[0] + v_bits[0] - s_flags[0] * 2] +
-             [u_bits[i] + v_bits[i] + s_flags[i-1] - s_flags[i] * 2 for i in range(1, size)])
+        w_bits = ([u_bits[0] + v_bits[0] - s_flags[0] * 2] +
+                  [u_bits[i] + v_bits[i] + s_flags[i-1] - s_flags[i] * 2 for i in range(1, size)])
 
-        return w
+        return w_bits
 
     def extract_bits(self) -> list[SharemindSecret]:
         # Round 1 & 2
