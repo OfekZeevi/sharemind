@@ -4,9 +4,11 @@ import math
 from typing import Iterable, Optional
 from tqdm import tqdm
 
+DEFAULT_SIZE = 32
+
 
 class SharemindSecret:
-    def __init__(self, value: Optional[int] = None, shares: Optional[Iterable] = None, size: int = 32):
+    def __init__(self, value: Optional[int] = None, shares: Optional[Iterable] = None, size: int = DEFAULT_SIZE):
         self.size = size
         self.mod = 2 ** size
 
@@ -29,7 +31,7 @@ class SharemindSecret:
         return sum(self.shares) % self.mod
 
     @staticmethod
-    def generate_shares(value: int, size: int = 32) -> tuple[int, int, int]:
+    def generate_shares(value: int, size: int = DEFAULT_SIZE) -> tuple[int, int, int]:
         mod = 2 ** size
         a, b = (random.randint(0, mod - 1) for _ in range(2))
         c = (value - a - b) % mod
@@ -47,7 +49,7 @@ class SharemindSecret:
         self.shares = (w1, w2, w3)
 
     @classmethod
-    def from_binary_shares(cls, shares: Iterable, size: int = 32) -> SharemindSecret:
+    def from_binary_shares(cls, shares: Iterable, size: int = DEFAULT_SIZE) -> SharemindSecret:
         u = SharemindSecret(shares=shares, size=size)
         mod = 2 ** size
 
@@ -94,7 +96,7 @@ class SharemindSecret:
         return w
 
     @classmethod
-    def generate_random_number_and_bits(cls, size: int = 32) -> tuple[SharemindSecret, list[SharemindSecret]]:
+    def generate_random_number_and_bits(cls, size: int = DEFAULT_SIZE) -> tuple[SharemindSecret, list[SharemindSecret]]:
         # Round 1
         r_bits = [cls.from_binary_shares(shares=(random.randint(0, 1) for _ in range(3)), size=size)
                   for _ in range(size)]
