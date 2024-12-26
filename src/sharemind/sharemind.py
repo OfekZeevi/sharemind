@@ -2,7 +2,6 @@ from __future__ import annotations
 import random
 import math
 from typing import Iterable, Optional
-from tqdm import tqdm
 
 DEFAULT_SIZE = 32
 
@@ -218,39 +217,3 @@ class SharemindSecret:
 
     def __bool__(self) -> bool:
         return bool(self.numeric_value)
-
-
-def main():
-    a = SharemindSecret(100)
-    b = SharemindSecret(7)
-
-    print(a)
-    print(b)
-
-    c = a + b * 2 + a * b
-    print(c)
-
-    n1, n2 = 27, 25
-    u_bits = [SharemindSecret(value=n1 // (2 ** i) % 2) for i in range(32)]
-    v_bits = [SharemindSecret(value=n2 // (2 ** i) % 2) for i in range(32)]
-    print(u_bits, sum([u.numeric_value * (2 ** i) for i, u in enumerate(u_bits)]))
-    print(v_bits, sum([v.numeric_value * (2 ** i) for i, v in enumerate(v_bits)]))
-    result = SharemindSecret.bitwise_addition(u_bits, v_bits)
-    print(result, sum([r.numeric_value * (2 ** i) for i, r in enumerate(result)]), '==', n1 + n2)
-
-    for n in [8, 16, 32, 64]:
-        count = 0
-        for _ in tqdm(range(1000)):
-            i, j = [random.randint(0, 2**(n-1)) for _ in range(2)]
-            a = SharemindSecret(value=i, size=n)
-            b = SharemindSecret(value=j, size=n)
-            if bool(i >= j) ^ bool(a >= b):
-                print(f'Failed for {i} and {j}, with n={n}')
-                break
-            count += 1
-        else:
-            print(f'Finished {count} random checks with n={n}')
-
-
-if __name__ == '__main__':
-    main()
