@@ -1,3 +1,10 @@
+"""
+An implementation of the Sharemind secret-sharing scheme and secure multiparty computation algorithms.
+This should be used for demonstration or educational purposes only, and not for any secure computation.
+See the "Sharemind" academic paper (Bogdanov et al., 2008) for more details.
+
+Author: Ofek Zeevi
+"""
 from __future__ import annotations
 import random
 import math
@@ -7,7 +14,22 @@ DEFAULT_SIZE = 32
 
 
 class SharemindSecret:
+    """
+    Represents a single shared secret in the Sharemind system.
+
+    The value stored in this object won't be saved plainly, but rather will be represented using 3 shares in an
+    additive secret-sharing scheme. All operations performed on this type of object will be performed using secure
+    multiparty computations based on the secret's shares and the algorithms from the Sharemind paper.
+    """
+
     def __init__(self, value: Optional[int] = None, shares: Optional[Iterable] = None, size: int = DEFAULT_SIZE):
+        """
+        Create a new Sharemind secret. Either "value" or "shares" must be provided.
+
+        :param value: The raw value to be represented (this will be converted into 3 shares).
+        :param shares: The 3 shares to be used by this instance.
+        :param size: The size of each share in bits. Note that all calculations will be performed with modulo 2^size.
+        """
         self.size = size
         self.mod = 2 ** size
 
@@ -23,20 +45,35 @@ class SharemindSecret:
             raise ValueError('Either shares or a numeric value must be provided')
 
     def __repr__(self):
-        return f'{self.numeric_value}'
+        return f'SharemindSecret(shares={self.shares}, size={self.size})'
 
     @property
     def numeric_value(self):
+        """
+        :return: The plain value represented by the shares of this secret.
+        """
         return sum(self.shares) % self.mod
 
     @staticmethod
     def generate_shares(value: int, size: int = DEFAULT_SIZE) -> tuple[int, int, int]:
+        """
+        Generates 3 new random shares whose sum will be "value" (modulo 2^size).
+
+        :param value: The value to be represented by the generated shares.
+        :param size: The size of each share in bits.
+        :return: The 3 generated shares.
+        """
         mod = 2 ** size
         a, b = (random.randint(0, mod - 1) for _ in range(2))
         c = (value - a - b) % mod
         return a, b, c
 
     def re_share(self):
+        """
+        Randomly re-distributes the shares of this secret (while preserving their sum).
+        This operation should be used at the end of non-universally-composable operations, to avoid accidentally
+        leaking information about the original shares' distribution.
+        """
         u1, u2, u3 = self.shares
 
         r1, r2, r3 = (random.randint(0, self.mod - 1) for _ in range(3))
@@ -49,6 +86,17 @@ class SharemindSecret:
 
     @classmethod
     def from_binary_shares(cls, shares: Iterable, size: int = DEFAULT_SIZE) -> SharemindSecret:
+        """
+        Creates a new Sharemind secret from the provided binary shares. Essentially converts binary shares to
+        shares over the ring Z_2^size.
+
+        Note: the provided shares should be *binary*, i.e. the value they represent is their sum modulo 2, and NOT
+              modulo 2^size. However, the shares in the new secret WILL use the provided size.
+
+        :param shares: The binary shares to convert.
+        :param size: The size of the new shares in bits.
+        :return: The new instance, representing the same plain value as the provided shares.
+        """
         u = SharemindSecret(shares=shares, size=size)
         mod = 2 ** size
 
@@ -96,6 +144,16 @@ class SharemindSecret:
 
     @classmethod
     def generate_random_number_and_bits(cls, size: int = DEFAULT_SIZE) -> tuple[SharemindSecret, list[SharemindSecret]]:
+        """
+        Generates a new random number, such that it is split into 3 random shares, and also each of its bits is split
+        into shares. The operation is designed such that none of the participants know the full value of the number
+        or any of its bits at any point.
+        This is useful for some bitwise opeartions in Sharemind, specifically bit-extraction.
+
+        :param size: The size of each share in bits.
+        :return: The generated random number, and a list of all of its bits (both represented as Sharemind secrets
+                 and not plain values).
+        """
         # Round 1
         r_bits = [cls.from_binary_shares(shares=(random.randint(0, 1) for _ in range(3)), size=size)
                   for _ in range(size)]
@@ -110,18 +168,22 @@ class SharemindSecret:
     @staticmethod
     def bitwise_addition(u_bits: list[SharemindSecret], v_bits: list[SharemindSecret]) -> list[SharemindSecret]:
         """
-        This is the bitwise addition in the carry look-ahead method that's described in the origin article.
-        It's a bit more complex than the naive carry calculation, but should be better for parallelization.
+        A bitwise addition algorithm in the carry look-ahead method, as described in the origin article.
+        It's a bit more complex than a naive carry calculation, but should be better for parallelization.
+
+        :param u_bits: The bits of the first number, u (each represented as a Sharemind secret).
+        :param v_bits: The bits of the second number, v (each represented as a Sharemind secret).
+        :return: The bits of the sum of the provided numbers, u+v (each represented as a Sharemind secret).
         """
         size = u_bits[0].size
-        assert len(u_bits) == len(v_bits) == size, 'Vector lengths do not match each other or share size'
+        assert len(u_bits) == len(v_bits) == size, 'Number of bits should be the same and match the defined share size'
         assert all(u.size == size and v.size == size for u, v in zip(u_bits, v_bits)), \
-            'Not all values have the same size'
+            'Not all bit secrets use the same share size'
 
         # Round 1
         s_flags = [u * v for u, v in zip(u_bits, v_bits)]
         p_flags = [u + v - s * 2 for u, v, s in zip(u_bits, v_bits, s_flags)]
-        # In the original paper it's written twice in contradictory ways, but THIS is the correct base case.
+        # In the original paper it's written twice in contradictory ways, but this should be the correct initialization.
 
         # Round 2 ... log_2(n) + 1
         for k in range(0, int(math.log(size, 2))):
@@ -138,6 +200,11 @@ class SharemindSecret:
         return w_bits
 
     def extract_bits(self) -> list[SharemindSecret]:
+        """
+        Extracts the bits of this secret in a secure manner, and returns them as a list of Sharemind secrets.
+
+        :return: A list of Sharemind secrets representing the bits of this secret.
+        """
         # Round 1 & 2
         r, r_bits = self.generate_random_number_and_bits(size=self.size)
 
@@ -153,18 +220,36 @@ class SharemindSecret:
         return d_bits
 
     def __add__(self, other: SharemindSecret) -> SharemindSecret:
+        """
+        Perform addition between this secret and another secret.
+
+        :param other: The other secret, to be added with this one.
+        :return: The result of the addition, as a Sharemind secret.
+        """
         assert self.size == other.size, 'Cannot perform addition with different sizes'
         w = SharemindSecret(shares=((u + v) % self.mod for u, v in zip(self.shares, other.shares)), size=self.size)
         w.re_share()
         return w
 
     def __sub__(self, other: SharemindSecret) -> SharemindSecret:
+        """
+        Perform subtraction between this secret and another secret.
+
+        :param other: The other secret, to be subtracted from this one.
+        :return: The result of the subtraction, as a Sharemind secret.
+        """
         assert self.size == other.size, 'Cannot perform subtraction with different sizes'
         w = SharemindSecret(shares=((u - v) % self.mod for u, v in zip(self.shares, other.shares)), size=self.size)
         w.re_share()
         return w
 
     def __mul__(self, other: int | SharemindSecret) -> SharemindSecret:
+        """
+        Perform multiplication between this secret and some plain value, or another secret.
+
+        :param other: The value that this secret will be multiplied by (either a plain value or another secret).
+        :return: The result of the multiplication, as a Sharemind secret.
+        """
         if isinstance(other, int):
             w = SharemindSecret(shares=((u * other) % self.mod for u in self.shares), size=self.size)
             w.re_share()
@@ -207,6 +292,17 @@ class SharemindSecret:
         return w
 
     def __ge__(self, other: SharemindSecret) -> SharemindSecret:
+        """
+        Perform a greater-than-equals comparison between this secret and another secret. The result won't be a boolean
+        value directly, but rather a Sharemind secret representing the value 0 for False or 1 for True.
+
+        Note: unlike most built-in __ge__ implementations, this one returns a Sharemind secret and NOT just a boolean
+              value. However, Sharemind secrets can be converted to boolean values using the built-in "bool" method.
+              This means that usage of the ">=" operator between Sharemind secrets should work in if-conditions.
+
+        :param other: The other secret, to be compared with this one.
+        :return: The result of the GTE comparison, as a Sharemind secret.
+        """
         assert self.size == other.size, 'Cannot perform greater-than-equals comparison between different sizes'
 
         d = self - other
@@ -216,4 +312,12 @@ class SharemindSecret:
         return w
 
     def __bool__(self) -> bool:
+        """
+        Converts this secret into a boolean value. Specifically, if the value represented by this secret's shares is 0
+        then the returned value will be False, otherwise it will be True.
+        This is useful because it will automatically be called by Python when using Sharemind secrets in if-conditions,
+        especially after using Sharemind comparison algorithms such as GTE.
+
+        :return: The boolean value represented by this secret.
+        """
         return bool(self.numeric_value)
