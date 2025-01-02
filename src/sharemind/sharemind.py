@@ -20,6 +20,10 @@ class SharemindSecret:
     The value stored in this object won't be saved plainly, but rather will be represented using 3 shares in an
     additive secret-sharing scheme. All operations performed on this type of object will be performed using secure
     multiparty computations based on the secret's shares and the algorithms from the Sharemind paper.
+
+    NOTE: Some of the algorithms in this class contain comments numbering the calculation rounds. These rounds are
+          taken from the original paper, and are used for self-synchronization between participants during complicated
+          calculations (both for efficiency and security reasons).
     """
 
     def __init__(self, value: Optional[int] = None, shares: Optional[Iterable] = None, size: int = DEFAULT_SIZE):
@@ -90,7 +94,7 @@ class SharemindSecret:
         Creates a new Sharemind secret from the provided binary shares. Essentially converts binary shares to
         shares over the ring Z_2^size.
 
-        Note: the provided shares should be *binary*, i.e. the value they represent is their sum modulo 2, and NOT
+        NOTE: the provided shares should be *binary*, i.e. the value they represent is their sum modulo 2, and NOT
               modulo 2^size. However, the shares in the new secret WILL use the provided size.
 
         :param shares: The binary shares to convert.
@@ -150,6 +154,10 @@ class SharemindSecret:
         or any of its bits at any point.
         This is useful for some bitwise opeartions in Sharemind, specifically bit-extraction.
 
+        NOTE: In the original paper, this is not a separate method but rather part of the bit-extraction method.
+              However, for clarity, we've elected to split it into a separate method here, as it is completely
+              self-contained and could theoretically be used for other purposes.
+
         :param size: The size of each share in bits.
         :return: The generated random number, and a list of all of its bits (both represented as Sharemind secrets
                  and not plain values).
@@ -158,17 +166,38 @@ class SharemindSecret:
         r_bits = [cls.from_binary_shares(shares=(random.randint(0, 1) for _ in range(3)), size=size)
                   for _ in range(size)]
 
-        # Round 2
+        # Round 2a (the second part of this round, 2b, is written in the "extract_bits" method.)
         r = SharemindSecret(value=0, size=size)
         for i, bit in enumerate(r_bits):
             r += bit * (2 ** i)
 
         return r, r_bits
 
+    def extract_bits(self) -> list[SharemindSecret]:
+        """
+        Extracts the bits of this secret in a secure manner, and returns them as a list of Sharemind secrets.
+
+        :return: A list of Sharemind secrets representing the bits of this secret.
+        """
+        # Round 1 ... 2a
+        r, r_bits = self.generate_random_number_and_bits(size=self.size)
+
+        # Round 2b (this is part of round 2 in the original paper, but written separately here for clarity.)
+        a = self - r
+
+        # Round 3
+        a_raw_value = a.numeric_value
+        a_raw_bits = [a_raw_value // (2 ** i) % 2 for i in range(self.size)]
+
+        a_bits = [self.from_binary_shares(shares=(raw_bit, 0, 0), size=self.size) for raw_bit in a_raw_bits]
+
+        d_bits = self.bitwise_addition(a_bits, r_bits)
+        return d_bits
+
     @staticmethod
     def bitwise_addition(u_bits: list[SharemindSecret], v_bits: list[SharemindSecret]) -> list[SharemindSecret]:
         """
-        A bitwise addition algorithm in the carry look-ahead method, as described in the origin article.
+        A bitwise addition algorithm in the carry look-ahead method, as described in the origin paper.
         It's a bit more complex than a naive carry calculation, but should be better for parallelization.
 
         :param u_bits: The bits of the first number, u (each represented as a Sharemind secret).
@@ -181,9 +210,12 @@ class SharemindSecret:
             'Not all bit secrets use the same share size'
 
         # Round 1
+        """
+        NOTE: In the original paper the "p_flags" initialization is defined twice, in contradictory ways. But based on 
+        our understanding of the carry look-ahead algorithm, what follows is the correct initialization.
+        """
         s_flags = [u * v for u, v in zip(u_bits, v_bits)]
         p_flags = [u + v - s * 2 for u, v, s in zip(u_bits, v_bits, s_flags)]
-        # In the original paper it's written twice in contradictory ways, but this should be the correct initialization.
 
         # Round 2 ... log_2(n) + 1
         for k in range(0, int(math.log(size, 2))):
@@ -198,26 +230,6 @@ class SharemindSecret:
                   [u_bits[i] + v_bits[i] + s_flags[i-1] - s_flags[i] * 2 for i in range(1, size)])
 
         return w_bits
-
-    def extract_bits(self) -> list[SharemindSecret]:
-        """
-        Extracts the bits of this secret in a secure manner, and returns them as a list of Sharemind secrets.
-
-        :return: A list of Sharemind secrets representing the bits of this secret.
-        """
-        # Round 1 & 2
-        r, r_bits = self.generate_random_number_and_bits(size=self.size)
-
-        a = self - r
-
-        # Round 2
-        a_raw_value = a.numeric_value
-        a_raw_bits = [a_raw_value // (2 ** i) % 2 for i in range(self.size)]
-
-        a_bits = [self.from_binary_shares(shares=(raw_bit, 0, 0), size=self.size) for raw_bit in a_raw_bits]
-
-        d_bits = self.bitwise_addition(a_bits, r_bits)
-        return d_bits
 
     def __add__(self, other: SharemindSecret) -> SharemindSecret:
         """
